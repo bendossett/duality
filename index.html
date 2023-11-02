@@ -2,10 +2,25 @@
 <html>
 <head>
 <script type="text/javascript" src="p5.min.js"></script>
-<script type="text/javascript" src="duality.js">
-</script>
+<script type="text/javascript" src="duality.js"></script>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-	<main></main>
+	<h1>Duality Demo</h1>
+	<ul>
+		<li>All of these work in either plane.</li>
+		<li>Left click to place a point.</li>
+		<li>In SEGMENT mode, left click and drag to create a line segment.</li>
+		<li>In LINE mode, left click and drag to create a line.</li>
+		<li>Refresh the page to restart.</li>
+	</ul>
+	<main>
+		<section class="canvas-container" id="primal">
+			<h2>Primal</h2>
+		</section>
+		<section class="canvas-container" id="dual">
+			<h2>Dual</h2>
+		</section>
+	</main>
 </body>
 </html>
