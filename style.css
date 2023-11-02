@@ -11,3 +11,9 @@ main {
     display: flex;
     flex-direction: row;
 }
+
+.mode {
+    display: flex;
+    flex-direction: row;
+    gap: 3rem;
+}
