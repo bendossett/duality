@@ -5,6 +5,7 @@ body {
 
 .p5Canvas {
     margin: 3rem;
+    overflow: hidden;
 }
 
 main {
