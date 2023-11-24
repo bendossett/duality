@@ -1,8 +1,8 @@
 const WIDTH = 5;
 const HEIGHT = 5;
 
-const CANVAS_WIDTH = 600;
-const CANVAS_HEIGHT = 600;
+let CANVAS_WIDTH = 600;
+let CANVAS_HEIGHT = 600;
 
 const dragThreshold = 0.1;
 
@@ -16,6 +16,9 @@ let offsetX = 0.0;
 let offsetY = 0.0;
 let targetOffsetX = 0.0;
 let targetOffsetY = 0.0;
+
+const colors = [];
+let colorCount = 0;
 
 window.onload = () => {
     document.querySelector("#mode-select").addEventListener("click", setModeStatus);
@@ -40,8 +43,7 @@ function canvas2coord(px, py) {
     const scale = 1 / scaleFactor;
     let x = map(px, 0, CANVAS_WIDTH, 0, (scale * WIDTH) * 2);
     let y = map(py, 0, CANVAS_HEIGHT, 0, (scale * HEIGHT) * 2);
-    return [Math.min(Math.max((x - (scale * WIDTH)) - offsetX, -((scale * WIDTH) / 2)), ((scale * WIDTH))), 
-            Math.min(Math.max((-(y - (scale * HEIGHT))) - offsetY, -((scale * HEIGHT))), ((scale * HEIGHT)))];
+    return [(x - (scale * WIDTH)) - offsetX, (-(y - (scale * HEIGHT))) - offsetY];
 }
 
 function coord2canvas(px, py) {
@@ -53,6 +55,69 @@ function coord2canvas(px, py) {
 
 function euclidean(p1, p2) {
     return Math.sqrt(Math.pow((p2[0] - p1[0]), 2) + Math.pow((p2[1] - p1[1]), 2))
+}
+
+function stopTouchScrolling(canvas) {
+    // Prevent scrolling when touching the canvas
+    document.body.addEventListener("touchstart", function (e) {
+        if (e.target == canvas) {
+            e.preventDefault();
+        }
+    }, { passive: false });
+    document.body.addEventListener("touchend", function (e) {
+        if (e.target == canvas) {
+            e.preventDefault();
+        }
+    }, { passive: false });
+    document.body.addEventListener("touchmove", function (e) {
+        if (e.target == canvas) {
+            e.preventDefault();
+        }
+    }, { passive: false });
+
+}
+
+function invertColor(color) {
+    color = parseInt(color, 16);
+    let r = (color >> 16) & 0xFF;
+    let g = (color >> 8) & 0xFF;
+    let b = color & 0xFF;
+
+    let invertedRed = 255 - r;
+    let invertedGreen = 255 - g;
+    let invertedBlue = 255 - b;
+
+    let invertedColor = `#${(1 << 24 | invertedRed << 16 | invertedGreen << 8 | invertedBlue).toString(16).slice(1)}`;
+
+    return invertedColor;
+}
+
+function generateRandomColor(baseColor) {
+    // Convert the base color string to RGB values
+    let baseRGB = parseInt(baseColor, 16);
+    let baseRed = (baseRGB >> 16) & 0xFF;
+    let baseGreen = (baseRGB >> 8) & 0xFF;
+    let baseBlue = baseRGB & 0xFF;
+
+    // Generate random offsets for each RGB component
+    let redOffset = Math.floor(Math.random() * 51) - 25;  // Random number between -25 and 25
+    let greenOffset = Math.floor(Math.random() * 51) - 25;
+    let blueOffset = Math.floor(Math.random() * 51) - 25;
+
+    // Apply the offsets to the base color
+    let randomRed = (baseRed + redOffset) % 256;
+    let randomGreen = (baseGreen + greenOffset) % 256;
+    let randomBlue = (baseBlue + blueOffset) % 256;
+
+    // Ensure the values are within the valid range (0 to 255)
+    randomRed = Math.max(0, Math.min(255, randomRed));
+    randomGreen = Math.max(0, Math.min(255, randomGreen));
+    randomBlue = Math.max(0, Math.min(255, randomBlue));
+
+    // Convert the RGB values back to a hexadecimal color string
+    let randomColor = `#${(1 << 24 | randomRed << 16 | randomGreen << 8 | randomBlue).toString(16).slice(1)}`;
+
+    return randomColor;
 }
 
 const Primitives = {
@@ -74,7 +139,13 @@ class DualityCanvas {
         this.sketch = sketch;
 
         this.sketch.setup = () => {
-            this.canvas = this.sketch.createCanvas(xDim, yDim);
+            CANVAS_HEIGHT = document.querySelector("#primal").offsetHeight;
+            CANVAS_WIDTH = document.querySelector("#primal").offsetHeight;
+
+            this.canvas = this.sketch.createCanvas(CANVAS_WIDTH, CANVAS_HEIGHT);
+
+
+            this.sketch.resizeCanvas(CANVAS_WIDTH, CANVAS_HEIGHT);
 
             if (isPrimal) {
                 this.canvas.parent('primal');
@@ -82,21 +153,27 @@ class DualityCanvas {
                 this.canvas.parent('dual');
             }
 
+            this.sketch.windowResized = e => {
+                CANVAS_HEIGHT = document.querySelector("#primal").offsetHeight;
+                CANVAS_WIDTH = document.querySelector("#primal").offsetWidth;
+    
+                this.sketch.resizeCanvas(CANVAS_WIDTH, CANVAS_HEIGHT);
+            }
+
+            stopTouchScrolling(document.querySelector("#primal"));
+            stopTouchScrolling(document.querySelector("#dual"));
+
             this.canvas.mousePressed((e) => this.onMousePressed(e));
             this.canvas.mouseMoved((e) => this.onMouseDragged(e));
             this.canvas.mouseReleased((e) => this.onMouseReleased(e));
 
             this.canvas.mouseWheel(e => {
-                const amnt = e.deltaY * 0.001;
+                const amnt = e.deltaY * 0.001 * scaleFactor;
                 scaleFactor += amnt;
                 scaleFactor = Math.max(Math.min(scaleFactor, 10.0), 0.1);
                 return false;
             });
 
-            this.sketch.stroke(0);
-            this.sketch.line(this.sketch.width / 2, 0, this.sketch.width / 2, this.sketch.height);
-            this.sketch.line(0, this.sketch.height / 2, this.sketch.width, this.sketch.height / 2);
-            
             for (let element of document.getElementsByClassName("p5Canvas")) {
                 element.addEventListener("contextmenu", (e) => e.preventDefault());
             }
@@ -114,7 +191,11 @@ class DualityCanvas {
 
         this.isPrimal = isPrimal;
 
-        this.needsDraw = [];
+        this.objects = [];
+
+        this.colorPickers = [];
+
+        this.colorCount = 0;
     }
 
     onMousePressed(e) {
@@ -144,8 +225,8 @@ class DualityCanvas {
 
     onMouseDragged(e) {
         if (this.rightMouseWasPressed && e.buttons === 2) {
-            targetOffsetX += map(this.sketch.mouseX - this.rightDragX, 0, 700, 0, 2*WIDTH);
-            targetOffsetY += -map(this.sketch.mouseY - this.rightDragY, 0, 700, 0, 2*HEIGHT);
+            targetOffsetX += map(this.sketch.mouseX - this.rightDragX, 0, 700, 0, 2 * WIDTH) * (1 / scaleFactor);
+            targetOffsetY += -map(this.sketch.mouseY - this.rightDragY, 0, 700, 0, 2 * HEIGHT) * (1 / scaleFactor);
             this.rightDragX = this.sketch.mouseX;
             this.rightDragY = this.sketch.mouseY;
         }
@@ -207,45 +288,112 @@ class DualityCanvas {
     }
 
     drawPrimitive(type, ...args) {
-        this.needsDraw.push(new Primitive(type, ...args));
+        this.objects.push(new Primitive(type, ...args));
+
+        switch (type) {
+            case Primitives.Ellipse:
+                {
+                    const [x, y] = args;
+                    this.addToList(`(${x.toFixed(3)},\xa0${y.toFixed(3)})`)
+                }
+                break;
+            case Primitives.Line:
+                {
+                    const [a, b] = args;
+                    this.addToList(`y\xa0=\xa0${a.toFixed(3)}x\xa0${b >= 0 ? "-" : "+"}\xa0${Math.abs(b).toFixed(3)}`)
+                }
+                break;
+            case Primitives.Segment:
+                {
+                    const [x1, y1, x2, y2] = args;
+                    this.addToList(`(${x1.toFixed(3)},\xa0${y1.toFixed(3)})\xa0->\n(${x2.toFixed(3)},\xa0${y2.toFixed(3)})`);
+                }
+                break;
+            case Primitives.Wedge:
+                {
+                    const [x1, y1, x2, y2] = args;
+                    this.addToList(`y\xa0=\xa0${x1.toFixed(3)}x\xa0${y1 >= 0 ? "-" : "+"}\xa0${Math.abs(y1).toFixed(3)}\xa0->\ny\xa0=\xa0${x2.toFixed(3)}x\xa0${y2 >= 0 ? "-" : "+"}\xa0${Math.abs(y2).toFixed(3)}`);
+                }
+                break;
+        }
+
+        if (this.isPrimal) {
+            colors.push("#000000");
+        }
+    }
+
+    addToList(text) {
+        const colorPickerLi = document.createElement("li");
+        colorPickerLi.className = "listItem";
+        const colorPicker = document.createElement("input");
+        colorPicker.setAttribute("type", "color");
+        colorPicker.setAttribute("number", this.colorCount);
+        colorPickerLi.appendChild(colorPicker);
+
+        const p = document.createElement("p");
+        p.appendChild(document.createTextNode(text));
+        colorPickerLi.appendChild(p);
+
+        if (this.isPrimal) {
+            colorPicker.id = `primal${this.colorCount}`;
+            colorPicker.addEventListener("change", (e) => {
+                document.querySelector(`#dual${colorPicker.getAttribute("number")}`).value = e.target.value;
+                colors[parseInt(colorPicker.getAttribute("number"))] = e.target.value;
+            });
+            this.colorCount++;
+            document.querySelector("#primalList").appendChild(colorPickerLi);
+        } else {
+            colorPicker.id = `dual${this.colorCount}`;
+            colorPicker.addEventListener("change", (e) => {
+                document.querySelector(`#primal${colorPicker.getAttribute("number")}`).value = e.target.value;
+                colors[colorPicker.getAttribute("number")] = e.target.value;
+            });
+            this.colorCount++;
+            document.querySelector("#dualList").appendChild(colorPickerLi);
+        }
     }
 
     drawGrid() {
         this.sketch.stroke(0);
 
-        const [yAxisP1X, yAxisP1Y] = coord2canvas(0, -(HEIGHT * 10));
-        const [yAxisP2X, yAxisP2Y] = coord2canvas(0, (HEIGHT * 10));
-        this.sketch.line(yAxisP1X, yAxisP1Y, yAxisP2X, yAxisP2Y);
+        let x1, y1;
+        let x2, y2;
 
-        const [xAxisP1X, xAxisP1Y] = coord2canvas(-(WIDTH * 10), 0);
-        const [xAxisP2X, xAxisP2Y] = coord2canvas((WIDTH * 10), 0);
-        this.sketch.line(xAxisP1X, xAxisP1Y, xAxisP2X, xAxisP2Y);
+        [x1, y1] = coord2canvas(-(WIDTH * 10), 0);
+        [x2, y2] = coord2canvas((WIDTH * 10), 0);
+        this.sketch.line(x1, y1, x2, y2);
+
+        [x1, y1] = coord2canvas(0, -(HEIGHT * 10));
+        [x2, y2] = coord2canvas(0, (HEIGHT * 10));
+        this.sketch.line(x1, y1, x2, y2);
+
 
         for (let i = -(WIDTH * 10); i < (WIDTH * 10); i++) {
-            const [x1, y1] = coord2canvas(i, -0.1);
-            const [x2, y2] = coord2canvas(i, 0.1);
+            [x1, y1] = coord2canvas(i, -0.1);
+            [x2, y2] = coord2canvas(i, 0.1);
             this.sketch.line(x1, y1, x2, y2);
         }
 
         for (let i = -(HEIGHT * 10); i < (HEIGHT * 10); i++) {
-            const [x1, y1] = coord2canvas(-0.1, i);
-            const [x2, y2] = coord2canvas(0.1, i);
+            [x1, y1] = coord2canvas(-0.1, i);
+            [x2, y2] = coord2canvas(0.1, i);
             this.sketch.line(x1, y1, x2, y2);
         }
     }
 
     draw() {
         this.sketch.clear();
-
-        offsetX = this.sketch.lerp(offsetX, targetOffsetX, 0.1);
-        offsetY = this.sketch.lerp(offsetY, targetOffsetY, 0.1);
+        this.sketch.strokeWeight(3);
 
         this.drawGrid();
 
         this.sketch.stroke(0);
         this.sketch.fill(0);
-        for (let i = 0; i < this.needsDraw.length; i++) {
-            let p = this.needsDraw[i];
+        for (let i = 0; i < this.objects.length; i++) {
+            this.sketch.stroke(colors[i]);
+            this.sketch.fill(colors[i]);
+
+            let p = this.objects[i];
 
             if (p.type === Primitives.Ellipse) {
 
@@ -291,7 +439,7 @@ class DualityCanvas {
                 let intersection = [(b2 - b1) / (a2 - a1), a1 * ((b2 - b1) / (a2 - a1)) - b1];
                 let intersection_canvas = coord2canvas(...intersection);
 
-                this.sketch.fill(255, 0, 0, 80);
+                this.sketch.fill(colors[i] + "22");
                 this.sketch.stroke(0, 0, 0, 0);
 
                 if ((a1 < 0 && a2 > 0) || (a2 < 0 && a1 > 0)) {
@@ -322,6 +470,8 @@ class DualityCanvas {
                 this.sketch.stroke(0);
             }
         }
+        offsetX = this.sketch.lerp(offsetX, targetOffsetX, 0.1);
+        offsetY = this.sketch.lerp(offsetY, targetOffsetY, 0.1);
     }
 }
 

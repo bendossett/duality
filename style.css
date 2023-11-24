@@ -1,20 +1,79 @@
+@font-face {
+    font-family: NatlPark;
+    src: url(NationalPark-Regular.woff2);
+}
+* {
+    box-sizing: border-box;
+}
+
 body {
     display: flex;
     flex-direction: column;
-}
-
-.p5Canvas {
-    margin: 3rem;
+    
+    min-height: 100vh;
+    height: 100vh;
     overflow: hidden;
+
+    font-family: NatlPark;
 }
 
 main {
     display: flex;
     flex-direction: row;
+    gap: 1rem;
+
+    flex-grow: 1;
+
+    max-height: 100%;
+    overflow: hidden;
 }
 
 .mode {
     display: flex;
     flex-direction: row;
     gap: 3rem;
+}
+
+.listItem {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+
+    gap: 1rem;
+}
+
+.planeWrapper {
+    display: flex;
+    flex-direction: row;
+
+    gap: 1rem;
+
+    width: 100%;
+}
+
+.planeWrapper > .canvas-container {
+    flex-grow: 1;
+    /* width: 100%; */
+}
+
+.planeWrapper > .leftText {
+    display: flex;
+    flex-direction: column;
+
+    max-height: 100%;
+    width: 200px;
+    overflow-y: scroll;
+}
+
+.planeWrapper > .leftText > ul {
+    padding-left: 0px;
+    width: auto;
+}
+
+.planeWrapper > .leftText > ul > li {
+    width: auto;
+}
+
+.planeWrapper > .leftText > ul > li > p {
+    white-space: pre;
 }
